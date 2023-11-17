@@ -1,5 +1,5 @@
-library(lubridate)
-library(tidyverse)
+# Load utilities
+source(here::here("code/__utils.R"))
 
 ############
 # Settings #
@@ -33,10 +33,13 @@ if(get_raw_from_api){
 ##########
 raw_imat = pc_imat %>%
   bind_rows(sud_imat) %>%
+  # Remove incomplete surveys (completion!=2)
+  filter(imatpc_team_report_complete==2 | imatsc_team_report_complete==2) %>%
   # Get survey date from redcap event
-  mutate(date = my(substr(redcap_event_name, 1, 8))) %>%
+  mutate(date = my(substr(redcap_event_name, 1, 8)),
+         complete_display_date = if_else(is.na(imat_completion_date), date, ymd(imat_completion_date))) %>%
   # Select only desired columns (no comment columns)
-  select(program_id, date, starts_with("imat_d"), imat_total_mean, -ends_with("_c")) %>%
+  select(program_id, date, starts_with("imat_d"), imat_total_mean, -ends_with("_c"), complete_display_date) %>%
   # Remove rows where all data are NA
   filter(if_any(starts_with("imat"), ~!is.na(.x)))
 
@@ -45,7 +48,7 @@ raw_imat = pc_imat %>%
 #############
 item_imat = raw_imat %>%
   select(-ends_with("_mean")) %>%
-  pivot_longer(-c(program_id, date),
+  pivot_longer(-c(program_id, date, complete_display_date),
                names_to="variable",
                values_to="value")
 
@@ -53,7 +56,7 @@ item_imat = raw_imat %>%
 # Dimensions & Subscales #
 ##########################
 subscale_imat = raw_imat %>%
-  select(date, program_id, ends_with("_mean")) %>%
+  select(date, program_id, ends_with("_mean"), complete_display_date) %>%
   pivot_longer(ends_with("_mean"),
                names_pattern="(.*)_mean",
                names_to="variable",
@@ -64,8 +67,8 @@ subscale_imat = raw_imat %>%
           mutate(imat_s1_mean = mean(c(imat_d3_11,imat_d3_12,imat_d3_14,imat_d4_9,
                                        #imat_d4_11, imat_d4_12, 
                                        imat_d5_5,imat_d5_6,imat_d6_1,imat_d6_2,imat_d7_3), na.rm=T)) %>%
-          select(date, program_id, imat_s1_mean) %>%
-          pivot_longer(c(-date, -program_id),
+          select(date, program_id, imat_s1_mean, complete_display_date) %>%
+          pivot_longer(imat_s1_mean,
                        names_pattern="(.*)_mean",
                        names_to="variable",
                        values_to="value"))
