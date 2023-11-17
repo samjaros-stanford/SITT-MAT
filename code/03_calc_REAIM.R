@@ -118,7 +118,7 @@ patient_data = raw_data %>%
 #################
 
 ### TEMP ###
-REAIM = read.csv("raw_data/MANUAL_SITT-MAT_Quarterly Data Reports - Completed Manuals.csv") %>%
+REAIM = read.csv("raw_data/manual_quarterly_data_report_20231116.csv") %>%
   mutate(date = parse_date_time(date, c("b-y","b-Y","b y","b Y")),
          value = as.numeric(final.value)) %>%
   select(date, program_id, variable, value)
