@@ -21,7 +21,6 @@ font = "Century Gothic"
 month_for_filenames = "Sep23"
 reaim_dims = c(5.4,2.1) # in inches, normally 5.49, 1.3
 imat_size = "short" #tall or short
-imat_dates = c("2022-09-01", "2023-04-01")
 MOUD_measure_labels = list("reaim_b5p"="MOUD within 30 days",
                            "reaim_c1p"="MOUD within 72 hours")
 
@@ -30,22 +29,55 @@ MOUD_measure_labels = list("reaim_b5p"="MOUD within 30 days",
 ##########
 
 # Line plot for percent patients diagnosed with OUD on MOUD within 30 days & 72h
-make_MOUDplot = function(id, save=F){
+make_MOUDplot = function(id, save=F, labels=F, dashed_line=F){
   plot_data = report_data %>%
     filter(program_id==id, variable %in% c("reaim_b5p","reaim_c1p"))
-    
+
+  # Handle position of "SITT-MAT Target" line
   targetLabel_x = max(plot_data$date)
   targetLabel_y = ifelse(plot_data[plot_data$date==targetLabel_x & plot_data$variable=="reaim_b5p","value"]>75,65,85)
   # For manual adjustment of the target label, when needed
   #targetLabel_x = ymd("2022-12-01")
   #targetLabel_y = 65
+  
+  # Handle presence (or absense) of labels
+  if(labels){
+    label_vars = report_data %>%
+      filter(program_id==id,
+             variable %in% c("reaim_b5p", "reaim_c1p", "reaim_b5", "reaim_b2", "reaim_c1")) %>%
+      pivot_wider(id_cols=c("date"),
+                  names_from="variable",
+                  values_from="value")
+    label_data = rbind(label_vars %>%
+                         mutate(variable = "reaim_b5p",
+                                value = reaim_b5p,
+                                denom = paste0(reaim_b5,"/",reaim_b2)),
+                       label_vars %>%
+                         mutate(variable = "reaim_c1p",
+                                value = reaim_c1p,
+                                denom = paste0(reaim_c1,"/",reaim_b2)))
+    labels_geom = geom_label(data=label_data, aes(x=date, color=variable, y=value, label=denom), show.legend=F)
+  } else {
+    labels_geom = geom_blank()
+  }
+  
+  # Handle dashed lines or none
+  if(dashed_line){
+    linetype_values = c("solid","dashed")
+  } else {
+    linetype_values = c("solid","solid")
+  }
+  
+  # Draw plot
   plot = ggplot(plot_data) +
     geom_hline(yintercept=75, linetype="dashed", color=SITTMAT_colors[3]) +
     geom_text(aes(x=targetLabel_x, y=targetLabel_y, label="SITT-MAT Target"), 
               color=SITTMAT_colors[3], size=3, family=font, fontface="bold",
               lineheight=0.75, hjust=0.8) +
-    geom_line(aes(x=date, color=variable, y=value), linewidth=1) +
+    geom_line(aes(x=date, color=variable, linetype=variable, y=value), linewidth=1) +
+    labels_geom +
     scale_color_manual(values=SITTMAT_colors[1:2], labels=~MOUD_measure_labels[.x]) +
+    scale_linetype_manual(values=linetype_values, guide="none") +
     scale_x_date(date_breaks="month", date_labels="%b-%y") +
     scale_y_continuous(breaks=seq(0,100,25), labels=function(x) paste0(x,"%"), limits=c(0,100)) +
     theme_minimal() +
@@ -56,7 +88,7 @@ make_MOUDplot = function(id, save=F){
           axis.text = element_text(size=8, family=font, color="black"),
           axis.text.x = element_text(angle=-20, vjust=0, hjust=0.3),
           plot.title = element_blank(),
-          plot.margin = margin(r=4,b=-3),
+          plot.margin = margin(t=3,r=4,b=-3),
           
           legend.title = element_blank(),
           legend.position = "bottom",
@@ -73,16 +105,25 @@ make_MOUDplot = function(id, save=F){
 }
 
 # Line plot for percent new patients prescribed MOUD with 2+ clinical visits in 34 days
-make_2Visits = function(id, save=F){
+make_2Visits = function(id, save=F, labels=F){
   plot_data = report_data %>%
-    filter(program_id==id, variable %in% c("reaim_c3p")) %>%
+    filter(program_id==id, variable %in% c("reaim_c3p", "reaim_c3", "reaim_b2")) %>%
     # Flip to get variables as columns
     pivot_wider(id_cols=c(program_id, date),
                 names_from=variable,
-                values_from=value)
-    
+                values_from=value) %>%
+    filter(!is.na(reaim_c3p))
+  
+  # Handle presence (or absense) of labels
+  if(labels){
+    labels_geom = geom_label(aes(x=date, y=reaim_c3p, color=program_id, label=paste(reaim_c3,"/",reaim_b2)), show.legend=F)
+  } else {
+    labels_geom = geom_blank()
+  }
+  
   plot = ggplot(plot_data, aes(x=date, y=reaim_c3p)) +
     geom_line(aes(color=program_id), linewidth=1, show.legend=F) +
+    labels_geom +
     scale_color_manual(values=SITTMAT_colors) +
     scale_x_date(date_breaks="month", date_labels="%b-%y") +
     scale_y_continuous(breaks=seq(0,100,25), labels=function(x) paste0(x,"%"), limits=c(0,100)) +
@@ -90,7 +131,7 @@ make_2Visits = function(id, save=F){
     theme(panel.grid.major.x = element_blank(),
           panel.grid.minor.x = element_blank(),
           panel.grid.minor.y = element_blank(),
-          plot.margin = margin(r=13),
+          plot.margin = margin(t=3,r=13),
           axis.text.x = element_text(angle=-20, vjust=0, hjust=0.3),
           axis.title = element_blank(),
           axis.text = element_text(size=10, family=font, color="black")) +
@@ -148,12 +189,12 @@ make_referralLinkage = function(id, save=F){
 ########
 
 # Line plot for IMAT subscale & total by month
-make_imat = function(id, save=F){
+make_imat = function(id, save=F, imat_dates=NULL){
   # Need to set sizing based on tall/short desired size
   #   imat_dims specifies final plot size in inches (width, height)
   #   imat_text_size specifies text sizes (all other text, x axis labels)
   if(imat_size=="short"){
-    imat_dims = c(7.5,2.24)
+    imat_dims = c(7.5,2.3)
     imat_text_size = c(8,7.8)
   } else {
     imat_dims = c(7.5,5)
@@ -181,7 +222,9 @@ make_imat = function(id, save=F){
       mutate(display_date = factor(format(date, "%b-%y"), levels=imat_dates, ordered=T)) 
   } else {
     plot_data = report_data %>%
-      filter(program_id==id, startsWith(variable, "imat"), date %in% imat_dates) %>%
+      filter(program_id==id, startsWith(variable, "imat")) %>%
+      # Select the first (baseline) survey and the most recent (comparison) survey
+      filter(date==max(date) | date==min(date)) %>%
       arrange(complete_display_date) %>%
       # Dates need to be factors for legend
       mutate(display_date = factor(format(ymd(complete_display_date), "%b-%y")))
@@ -274,17 +317,18 @@ make_allPlots = function(id, save_plots=F, show_plots=T){
   if(show_plots) print(p)
 }
 # Define which sites you want to produce plots for
-programs = sort(unique(report_data[grepl("reaim_b5p",report_data$variable),"program_id"]))
-#programs = paste0("id", 53:62)
+#programs = sort(unique(report_data[grepl("reaim_b5p",report_data$variable),"program_id"]))
+programs = c("id15","id44"); reaim_dims=c(5.4,2.1)
 # Iterate through programs & produce all plots
+imat_size="short"
 for(program in programs){
   make_allPlots(program, save_plots=T, show_plots=F)
 }
 
 
 # Produce only IMAT (for sites that don't have REAIM data)
-imat_programs = sort(unique(report_data$program_id[!report_data$program_id%in%programs]))
-#imat_programs = c("id38")
+#imat_programs = sort(unique(report_data$program_id[!report_data$program_id%in%programs]))
+imat_programs = paste0("id",c(64:73))
 imat_size="tall"
 for(program in imat_programs){
   print(paste0("Creating IMAT plot for ", program))
