@@ -19,7 +19,7 @@ SITTMAT_colors = c("#007ea7", "#ff9f1c", "#5d9818", "#e71d36", "#9900ff", "#00ff
 red_yellow_green = c("#e71d36", "#ff9f1c", "#5d9818")
 font = "Century Gothic"
 month_for_filenames = "Sep23"
-reaim_dims = c(5.4,2.1) # in inches, normally 5.49, 1.3
+reaim_dims = c(5.5,1.3) # in inches, normally 5.49, 1.3
 imat_size = "short" #tall or short
 MOUD_measure_labels = list("reaim_b5p"="MOUD within 30 days",
                            "reaim_c1p"="MOUD within 72 hours")
@@ -39,7 +39,7 @@ make_MOUDplot = function(id, save=F, labels=F, dashed_line=F){
   # For manual adjustment of the target label, when needed
   #targetLabel_x = ymd("2022-12-01")
   #targetLabel_y = 65
-  
+
   # Handle presence (or absense) of labels
   if(labels){
     label_vars = report_data %>%
@@ -56,7 +56,8 @@ make_MOUDplot = function(id, save=F, labels=F, dashed_line=F){
                          mutate(variable = "reaim_c1p",
                                 value = reaim_c1p,
                                 denom = paste0(reaim_c1,"/",reaim_b2)))
-    labels_geom = geom_label(data=label_data, aes(x=date, color=variable, y=value, label=denom), show.legend=F)
+    labels_geom = geom_label(data=label_data, aes(x=date, color=variable, y=value, label=denom), 
+                             label.padding=unit(0.1, "lines"), color=SITTMAT_colors[1], size=3, show.legend=F)
   } else {
     labels_geom = geom_blank()
   }
@@ -116,7 +117,8 @@ make_2Visits = function(id, save=F, labels=F){
   
   # Handle presence (or absense) of labels
   if(labels){
-    labels_geom = geom_label(aes(x=date, y=reaim_c3p, color=program_id, label=paste(reaim_c3,"/",reaim_b2)), show.legend=F)
+    labels_geom = geom_label(aes(x=date, y=reaim_c3p, color=program_id, label=paste(reaim_c3,"/",reaim_b2)), 
+                             label.padding=unit(0.1, "lines"), size=3, show.legend=F)
   } else {
     labels_geom = geom_blank()
   }
