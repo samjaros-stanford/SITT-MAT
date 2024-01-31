@@ -20,7 +20,6 @@ output_file = paste0("data/CDI_",gsub("-","",as.character(today())),".csv") # Pa
 #   By default, use redcap API unless the variable is declared in the environment elsewhere
 #   Set this value to FALSE to use local files
 get_raw_from_api = ifelse(exists("get_raw_from_api"),get_raw_from_api,T)
-
 ##########
 # Import #
 ##########
@@ -32,15 +31,16 @@ cdi_scoring = read.csv("public_data/cdi_scoring.csv", colClasses=c("q_num"="char
 if(get_raw_from_api){
   sud_cdi = get_redcap_report("SC", "110001")
   pc_cdi = get_redcap_report("PC", "110006")
+
 } else {
   # Get these files from REDCap and put them in the raw_data folder
   #   In REDCap, this is "CDI Scores" under "Reports" in the sidebar
   #   Click on "Export Data" > "CSV/Microsoft Excel (raw data)" > "Export Data" > File icon
   # Change the file name to match format CDI_[YYYYMMDD]_[PC|SUD].csv using the current date and the site type
   file_names = list.files(path="raw_data/", full.names=T)
-  sud_cdi = read_csv(sort(file_names[grepl("(?=.*CDI)(?=.*SUD)", file_names, perl = TRUE)], decreasing=T)[1])
-  pc_cdi = read_csv(sort(file_names[grepl("(?=.*CDI)(?=.*PC)", file_names, perl = TRUE)], decreasing=T)[1])
+  
 }
+
 
 raw_cdi = bind_rows(mutate(sud_cdi, type="SUD"), 
                     mutate(pc_cdi, type="PC")) %>%
@@ -52,10 +52,10 @@ raw_cdi = bind_rows(mutate(sud_cdi, type="SUD"),
 # Get long & wide formats #
 ###########################
 # TODO: rewrite section with pivot_longer/pivot_wider for readibility
-
+# print(raw_cdi[c('cdi_team_report_timestamp')])
 long_cdi = raw_cdi %>%
   select(program_id, redcap_event_name, type, starts_with("cdi_")) %>%
-  pivot_longer(starts_with("cdi_") & !cdi_team_report_timestamp,
+  pivot_longer(starts_with("cdi_"),
                names_to="item",
                values_to="value", values_drop_na=T) %>%
   # Put score in terms of centered around 0
