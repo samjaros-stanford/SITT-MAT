@@ -3,6 +3,8 @@
 .RData
 .Ruserdata
 
+.ipynb_checkpoints
+
 data/
 figures/
 raw_data/

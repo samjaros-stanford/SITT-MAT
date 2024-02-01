@@ -22,19 +22,19 @@ get_raw_from_api = ifelse(exists("get_raw_from_api"),get_raw_from_api,T)
 # Import #
 ##########
 
-# REAIM Outcomes
-if(get_raw_from_api){
-  sud_cdi = get_redcap_report("SC", "")
-  pc_cdi = get_redcap_report("PC", "")
-} else {
-  # Get these files from REDCap and put them in the raw_data folder
-  #   In REDCap, this is "CDI Scores" under "Reports" in the sidebar
-  #   Click on "Export Data" > "CSV/Microsoft Excel (raw data)" > "Export Data" > File icon
-  # Change the file name to match format CDI_[YYYYMMDD]_[PC|SUD].csv using the current date and the site type
-  file_names = list.files(path="raw_data/", full.names=T)
-  sud_cdi = read_csv(sort(file_names[grepl("(?=.*REAIM)(?=.*SUD)", file_names, perl = TRUE)], decreasing=T)[1])
-  pc_cdi = read_csv(sort(file_names[grepl("(?=.*REAIM)(?=.*PC)", file_names, perl = TRUE)], decreasing=T)[1])
-}
+# # REAIM Outcomes
+# if(get_raw_from_api){
+#   sud_cdi = get_redcap_report("SC", "")
+#   pc_cdi = get_redcap_report("PC", "")
+# } else {
+#   # Get these files from REDCap and put them in the raw_data folder
+#   #   In REDCap, this is "CDI Scores" under "Reports" in the sidebar
+#   #   Click on "Export Data" > "CSV/Microsoft Excel (raw data)" > "Export Data" > File icon
+#   # Change the file name to match format CDI_[YYYYMMDD]_[PC|SUD].csv using the current date and the site type
+#   file_names = list.files(path="raw_data/", full.names=T)
+#   sud_cdi = read_csv(sort(file_names[grepl("(?=.*REAIM)(?=.*SUD)", file_names, perl = TRUE)], decreasing=T)[1])
+#   pc_cdi = read_csv(sort(file_names[grepl("(?=.*REAIM)(?=.*PC)", file_names, perl = TRUE)], decreasing=T)[1])
+# }
 
 # TODO: This file should process data from the new REAIM registry where sites give counts directly
 

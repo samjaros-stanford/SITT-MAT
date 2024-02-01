@@ -55,7 +55,7 @@ raw_cdi = bind_rows(mutate(sud_cdi, type="SUD"),
 
 long_cdi = raw_cdi %>%
   select(program_id, redcap_event_name, type, starts_with("cdi_")) %>%
-  pivot_longer(starts_with("cdi_"),
+  pivot_longer(starts_with("cdi_") & !cdi_team_report_timestamp,
                names_to="item",
                values_to="value", values_drop_na=T) %>%
   # Put score in terms of centered around 0
