@@ -3,7 +3,6 @@
 # NOTE: IDs provided by the site are incorrect, so these patients will be issued
 #         corrected id's in the format "c##-####"
 
-require(lubridate)
 require(readxl)
 require(tidyverse)
 require(here)
@@ -132,7 +131,7 @@ study_prescriptions = after_sep2022_ids %>%
   group_by(pr_id) %>%
   mutate(is_restart = case_when(
     row_number()==1 ~ F,
-    rx_order_date-lag(rx_order_date)<34 ~ F,
+    rx_order_date-lag(rx_order_date)<60 ~ F,
     rx_order_date-lag(rx_order_date)<lag(est_rx_days)*(lag(rx_num_refills)+1) ~ F,
     T ~ T
   )) %>%
@@ -163,10 +162,10 @@ rx_start_stop = study_prescriptions %>%
             end_date = last(rx_order_date) + last(est_rx_days),
             .groups="keep") %>%
   ungroup() %>%
-  mutate(months=toString(unique(study_prescriptions$month_year))) %>%
-  separate_rows(months, sep=", ") %>%
+  mutate(month_year=toString(unique(study_prescriptions$month_year))) %>%
+  separate_rows(month_year, sep=", ") %>%
   # Test if the interval month (ex. Sep 1 2022 - Sep 30 2022) overlaps with the treatment interval
-  mutate(is_rx_month = int_overlaps(interval(my(months), ceiling_date(my(months),"month")-days(1)), interval(start_date, end_date)))
+  mutate(is_rx_month = int_overlaps(interval(my(month_year), ceiling_date(my(month_year),"month")-days(1)), interval(start_date, end_date)))
 
 # Given a visit_date and a patient, find the nearest prescription date after that visit
 find_nearest_rx = function(dataset, patient, visit_date){
@@ -193,18 +192,10 @@ visit_rx_match = study_visits %>%
 #       the past month
 A1 = study_prescriptions %>%
   group_by(rx_site_name, month_year) %>%
-  summarize(value = length(unique(rx_provider)), .groups="keep") %>%
+  summarize(reaim_a1 = length(unique(rx_provider)), .groups="keep") %>%
   ungroup() %>%
-  mutate(variable = "reaim_a1") %>%
   left_join(site_name_id, by=join_by(rx_site_name==site_name)) %>%
-  select(program_id, month_year, variable, value) %>%
-  pivot_wider(names_from = month_year,
-              values_from = value,
-              values_fill = 0) %>%
-  pivot_longer(cols = c(-program_id, -variable),
-               names_to = "date",
-               names_transform = list(date=my),
-               values_to = "value")
+  select(program_id, month_year, reaim_a1)
 
 # B1: Number of new and existing patients diagnosed with OUD
 #     # OLD MEASURE #
@@ -214,21 +205,11 @@ B1 = study_visits %>%
   select(pr_id, program_id, month_year) %>%
   bind_rows(rx_start_stop %>%
               filter(is_rx_month) %>%
-              rename(month_year=months) %>%
               select(pr_id, program_id, month_year)) %>%
   distinct() %>%
   group_by(program_id, month_year) %>%
-  summarize(value = n(), .groups="keep") %>%
-  ungroup() %>%
-  mutate(variable = "reaim_b1") %>%
-  select(program_id, month_year, variable, value) %>%
-  pivot_wider(names_from = month_year,
-              values_from = value,
-              values_fill = 0) %>%
-  pivot_longer(cols = c(-program_id, -variable),
-               names_to = "date",
-               names_transform = list(date=my),
-               values_to = "value")
+  summarize(reaim_b1 = n(), .groups="keep") %>%
+  select(program_id, month_year, reaim_b1)
 
 # B2: Number of new patients diagnosed with OUD
 #     The total number of patients with a new ICD10 or DSM5 diagnosis of OUD in
@@ -239,49 +220,22 @@ B2 = study_visits %>%
   select(pr_id, program_id, month_year) %>%
   distinct() %>%
   group_by(program_id, month_year) %>%
-  summarize(value = n(), .groups="keep") %>%
-  ungroup() %>%
-  mutate(variable = "reaim_b2") %>%
-  select(program_id, month_year, variable, value) %>%
-  pivot_wider(names_from = month_year,
-              values_from = value,
-              values_fill = 0) %>%
-  pivot_longer(cols = c(-program_id, -variable),
-               names_to = "date",
-               names_transform = list(date=my),
-               values_to = "value")
+  summarize(reaim_b2 = n(), .groups="keep") %>%
+  ungroup()
 
 # B4: Number of patients prescribed MOUD
 #     The total number of patients administered MOUD in the past month. Note: 
 #       Include patients who may be new, restarted, or established.
-
-# Start with dataset of each patient * month
 B4 = rx_start_stop %>%
   # Filter for only rows where the patient was taking MOUD that month
   filter(is_rx_month) %>%
   # Get distinct patient/month combinations in case a patient has more than one continuous tx in a month
-  select(pr_id, program_id, months) %>%
+  select(pr_id, program_id, month_year) %>%
   distinct() %>%
   # Get count of patients by site * month
-  group_by(program_id, months) %>%
+  group_by(program_id, month_year) %>%
   summarize(reaim_b4 = n(), .groups="keep") %>%
-  ungroup() %>%
-  mutate(date = my(months)) %>%
-  # Calculate new and existing MOUD as a percent of OUD diagnoses
-  left_join(B1, by=c("program_id", "date")) %>%
-  mutate(reaim_b4p = reaim_b4/value*100) %>%
-  select(-variable, -value) %>%
-  pivot_longer(cols=c(reaim_b4, reaim_b4p),
-               names_to="variable",
-               values_to="value") %>%
-  select(program_id, months, variable, value) %>%
-  pivot_wider(names_from = months,
-              values_from = value,
-              values_fill = 0) %>%
-  pivot_longer(cols = c(-program_id, -variable),
-               names_to = "date",
-               names_transform = list(date=my),
-               values_to = "value")
+  ungroup()
   
 # B5: Number of new patients prescribed MOUD within 30 days of diagnosis
 #     Of the total number of patients reported for B2, calculate the subset of 
@@ -289,7 +243,13 @@ B4 = rx_start_stop %>%
 #       month. Note: Include patients who re-started MOUD after a break in 
 #       treatment.
 # B5P describes this as a percent of B2
-
+B5 = visit_rx_match %>%
+  filter(is_start | is_restart) %>%
+  filter(!is.na(nearest_rx)) %>%
+  filter(nearest_rx-encounter_date<=30) %>%
+  group_by(program_id, month_year) %>%
+  summarize(reaim_b5 = n(), .groups="keep") %>%
+  ungroup()
 
 # C1: Number of new patients prescribed MOUD within 72h
 #     Of the total number of patients reported for B2, calculate the subset of
@@ -302,70 +262,76 @@ C1 = visit_rx_match %>%
   filter(!is.na(nearest_rx)) %>%
   filter(nearest_rx-encounter_date<=3) %>%
   group_by(program_id, month_year) %>%
-  summarize(reaim_c1_n = n(), .groups="keep") %>%
-  ungroup() %>%
-  mutate(date = my(month_year)) %>%
-  left_join(B2, by=c("program_id", "date")) %>%
-  mutate(reaim_c1p = reaim_c1_n/value*100) %>%
-  select(-variable, -value) %>%
-  pivot_longer(cols = c(reaim_c1_n, reaim_c1p),
-               names_to = "variable",
-               values_to = "value") %>%
-  select(program_id, month_year, variable, value) %>%
-  pivot_wider(names_from = month_year,
-              values_from = value,
-              values_fill = 0) %>%
-  pivot_longer(cols = c(-program_id, -variable),
-               names_to = "date",
-               names_transform = list(date=my),
-               values_to = "value")
+  summarize(reaim_c1 = n(), .groups="keep") %>%
+  ungroup() 
 
 # C3: Number of new patients retained on MOUD
 #     Of the total number of patients reported in B5, the subset of patients who
 #       had 2+ in-person outpatient clinical visits within 34 days of starting
 #       MOUD.
 # C3P describes this as a percent of B5
+C3 = visit_rx_match %>%
+  # Get all patients who were prescribed MOUD within 30 days of start or restart
+  filter(is_start | is_restart) %>%
+  filter(!is.na(nearest_rx)) %>%
+  filter(nearest_rx-encounter_date<=30) %>%
+  select(pr_id, program_id, month_year, nearest_rx) %>%
+  # Join in all eligible study visits and prescriptions
+  left_join(rbind(select(study_visits, pr_id, encounter_date),
+                  select(study_prescriptions, pr_id, rx_order_date) %>% rename(encounter_date=rx_order_date)) %>%
+              distinct(), by="pr_id", relationship="many-to-many") %>%
+  # Only keep visits that are within 34 days of the prescription date
+  mutate(rx_visit_gap = encounter_date-nearest_rx) %>%
+  filter(rx_visit_gap>0 & rx_visit_gap<=34) %>%
+  # Count number of post-rx visits per patient per start/restart
+  group_by(pr_id, program_id, month_year, nearest_rx) %>%
+  summarize(n_post_rx_visits = n(), .groups="keep") %>%
+  # Only keep patients with 2+ visits
+  filter(n_post_rx_visits >= 2) %>%
+  # Get count by program_id and month and get in format ready for storage
+  group_by(program_id, month_year) %>%
+  summarize(reaim_c3 = n(), .groups="keep") %>%
+  ungroup()
 
-  
-# C5: Number of patients transition care to outside your clinic
-#     C5.1 - Referred and follow-up appointment confirmed
-#     C5.2 - Referred only
-#     C5.3 - No referral made by clinic
-#     C5.4 - Patient refused referral
-#     C5.5 - Other/not listed
-
-# Unable to calculate with current data
 
 ##########
 # Export #
 ##########
 
-saveRDS(rbind(A1, B1, B2, B4, C1), "data/current_53-62_reaim.rds")
-a = readRDS("data/current_53-62_reaim.rds") %>%
-  pivot_wider(names_from=variable) %>%
-  arrange(date, program_id)
+assembled_reaim = full_join(A1, B1) %>%
+  full_join(B2) %>%
+  full_join(B4) %>%
+  full_join(B5) %>%
+  full_join(C1) %>%
+  full_join(C3) %>%
+  # Create percent variables
+  mutate(reaim_b4p = reaim_b4/reaim_b1*100,
+         reaim_b5p = reaim_b5/reaim_b2*100,
+         reaim_c1p = reaim_c1/reaim_b2*100,
+         reaim_c3p = reaim_c3/reaim_b5*100) %>%
+  # Replace NAs with 0
+  mutate(across(where(is.numeric), ~coalesce(.x,0)))
 
+saveRDS(pivot_longer(assembled_reaim, 
+                     cols=c(-program_id, -month_year),
+                     names_to="variable",
+                     values_to="value"), 
+        "data/current_53-62_reaim.rds")
 
-#####################################
-# Temp summary stats to show Hannah #
-#####################################
-# Just first visits by site
-# visits %>% 
-#   group_by(id_from_site) %>%
-#   mutate(n = row_number()) %>%
-#   filter(n==1) %>%
-#   group_by(site_name) %>%
-#   summarize(first_count = n()) %>%
-#   mutate(first_pct = first_count/sum(first_count)) %>%
-#   left_join(visits %>% 
-#               group_by(site_name) %>%
-#               summarize(all_count = n()) %>%
-#               mutate(all_pct = all_count/sum(all_count)),
-#             by="site_name")
-# # Shows that the % of first visits ~~ % of total visits
-# # Get prescriptions to ask Albert about
-# a = prescriptions %>%
-#   select(rx_name, rx_quantity) %>%
-#   distinct
-# view(a)
-### End temp ###
+ultrawide_reaim = assembled_reaim %>%
+  # Get actual date for ordering and display date for naming
+  mutate(date = my(month_year),
+         disp_my = tolower(str_replace_all(month_year, "([A-Za-z]{3})\\s\\d{2}(\\d{2})", "\\1\\2"))) %>%
+  # Arrange correctly
+  arrange(program_id, date) %>%
+  # Pivot to put reaim and date in column names, backwards for ordering
+  pivot_wider(id_cols=program_id,
+              names_from=disp_my,
+              names_glue="{.value}_{disp_my}",
+              values_from=starts_with("reaim_")) %>%
+  # Flip names
+  rename_with(.cols=starts_with("reaim_"),
+              .fn=~str_replace(.x, "(\\w*)_(\\w{5})$", "\\2_\\1"))
+
+write.csv(ultrawide_reaim, file="data/PCHS_ultrawide_reaim.csv")
+
