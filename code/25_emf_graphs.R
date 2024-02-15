@@ -315,7 +315,7 @@ make_allPlots = function(id, save_plots=F, show_plots=T){
     print(p)
     invisible(readline(prompt="Press [enter] to continue"))
   }
-  p = make_imat(id, save=save_plots)
+  p = make_imat(id, save=save_plots, imat_dates=c("Sep22", "Apr23"))
   if(show_plots) print(p)
 }
 # Define which sites you want to produce plots for
@@ -334,5 +334,5 @@ imat_programs = paste0("id",c(64:73))
 imat_size="tall"
 for(program in imat_programs){
   print(paste0("Creating IMAT plot for ", program))
-  make_imat(program, save=T)
+  make_imat(program, save=T, imat_dates=c("Sep22", "Apr23"))
 }
