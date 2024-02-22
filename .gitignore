@@ -5,6 +5,7 @@
 
 .ipynb_checkpoints
 
+.DS_Store
 data/
 figures/
 raw_data/

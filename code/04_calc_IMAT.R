@@ -77,6 +77,7 @@ subscale_imat = raw_imat %>%
                        names_to="variable",
                        values_to="value"))
 
+
 ##########
 # Export #
 ##########
