@@ -28,6 +28,10 @@ if(get_raw_from_api){
   pc_imat = read_csv(sort(file_names[grepl("(?=.*IMAT-all)(?=.*PC)", file_names, perl = TRUE)], decreasing=T)[1])
 }
 
+
+sud_imat$imat_count_4 = as.numeric(sud_imat$imat_count_4)
+pc_imat$imat_count_4 = as.numeric(pc_imat$imat_count_4)
+
 ##########
 # Import #
 ##########
@@ -72,6 +76,7 @@ subscale_imat = raw_imat %>%
                        names_pattern="(.*)_mean",
                        names_to="variable",
                        values_to="value"))
+
 
 ##########
 # Export #

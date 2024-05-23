@@ -83,6 +83,9 @@ reaim_data = long_reaim %>%
 # IMAT #
 ########
 
+sud_imat$imat_count_4 = as.numeric(sud_imat$imat_count_4)
+pc_imat$imat_count_4 = as.numeric(pc_imat$imat_count_4)
+
 # Import and stack raw data
 raw_imat = bind_rows(mutate(sud_imat, type="SUD"), 
                      mutate(pc_imat, type="PC")) %>%
