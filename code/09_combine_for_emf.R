@@ -19,6 +19,6 @@ imat = readRDS("data/current_imat_subscale.rds") %>%
   mutate(type = if_else(program_id %in% paste0("id", str_pad(0:49, 2, "left", "0")),
                         "SUD",
                         "PC"))
-# 
-# # Create data set for "Quarterly REAIM/IMAT Reports" (QRIR)
+
+# Create data set for "Quarterly REAIM/IMAT Reports" (QRIR)
 write.csv(bind_rows(reaim, imat), "data/current_QRIR.csv", row.names=F)
