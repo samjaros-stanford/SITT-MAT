@@ -221,7 +221,6 @@ make_2Visits = function(id, save=F, labels=T){
   min_x <- min(data_with_na$grouping_period, na.rm = TRUE)
   max_x <- max(data_with_na$grouping_period, na.rm = TRUE)
   
-
   plot = ggplot(data_with_na, aes(x=grouping_period, y=new_percentage_c3p)) +
     geom_line(aes(color="black"), linewidth=1, show.legend=F) +
     geom_label(data = data_labels, aes(x = grouping_period, y = new_percentage_c3p,

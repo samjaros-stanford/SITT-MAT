@@ -8,7 +8,7 @@ library(tidyverse)
 # Prep REAIM
 #   Add clinic type
 reaim = readRDS("data/current_reaim.rds") %>%
-  bind_rows(readRDS("data/current_53-62_reaim.rds")) %>%
+  # bind_rows(readRDS("data/current_53-62_reaim.rds")) %>%
   mutate(type = if_else(program_id %in% paste0("id", str_pad(0:49, 2, "left", "0")),
                                                                 "SUD",
                                                                 "PC"))
