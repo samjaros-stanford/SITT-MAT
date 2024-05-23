@@ -454,13 +454,12 @@ assembled_reaim = full_join(A1, B1) %>%
          reaim_c1p = reaim_c1/reaim_b2*100,
          reaim_c3p = reaim_c3/reaim_b5*100) %>%
   # Replace NAs with 0
-  mutate(across(where(is.numeric), ~coalesce(.x,0)),
-         date = my(month_year))
+  mutate(across(where(is.numeric), ~coalesce(.x,0)))
 
-saveRDS(select(assembled_reaim, -month_year) %>%
-          pivot_longer(cols=c(-program_id, -date),
-                       names_to="variable",
-                       values_to="value"), 
+saveRDS(pivot_longer(assembled_reaim, 
+                     cols=c(-program_id, -month_year),
+                     names_to="variable",
+                     values_to="value"), 
         "data/current_53-62_reaim.rds")
 
 ultrawide_reaim = assembled_reaim %>%
