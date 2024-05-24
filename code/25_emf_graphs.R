@@ -463,7 +463,6 @@ make_allPlots = function(id, save_plots=F, show_plots=T){
 #programs = sort(unique(report_data[grepl("reaim_b5p",report_data$variable),"program_id"]))
 # programs = paste0("id",c(64:73))
 programs = c("id35")
-# programs = c("id26", "id38")
 # reaim_dims=c(5.4,2.2)
 # Iterate through programs & produce all plots
 imat_size="tall"

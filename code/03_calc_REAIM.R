@@ -122,8 +122,13 @@ REAIM = read.csv("raw_data/manual_quarterly_data_report_20240522.csv") %>%
   mutate(date = parse_date_time(date, c("b-y","b-Y","b y","b Y")),
          value = as.numeric(final.value)) %>%
   select(date, program_id, variable, value)
+
+# filter out 53-62
+ids_to_filter <- paste0("id", 53:62)
+REAIM_filtered <- REAIM[!REAIM$program_id %in% ids_to_filter, ]
+
 ### /TEMP ###
-saveRDS(REAIM, "data/current_reaim.rds")
+saveRDS(REAIM_filtered, "data/current_reaim.rds")
 
 
 
