@@ -13,6 +13,7 @@ reaim = readRDS("data/current_reaim.rds") %>%
                                                                 "SUD",
                                                                 "PC"))
 
+
 # Prep IMAT
 #   Add clinic type
 imat = readRDS("data/current_imat_subscale.rds") %>%

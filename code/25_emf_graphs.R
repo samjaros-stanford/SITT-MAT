@@ -6,6 +6,8 @@ library(grid)
 library(lubridate)
 library(scales)
 library(tidyverse)
+library(zoo)
+
 
 ############
 # Settings #
@@ -18,85 +20,137 @@ SITTMAT_colors = c("#007ea7", "#ff9f1c", "#5d9818", "#e71d36", "#9900ff", "#00ff
 # Colors for linkage plots
 red_yellow_green = c("#e71d36", "#ff9f1c", "#5d9818")
 font = "Century Gothic"
-month_for_filenames = "Sep23"
+month_for_filenames = "May24"
 reaim_dims = c(5.5,1.3) # in inches, normally 5.49, 1.3
 imat_size = "short" #tall or short
-MOUD_measure_labels = list("reaim_b5p"="MOUD within 30 days",
-                           "reaim_c1p"="MOUD within 72 hours")
+# MOUD_measure_labels = list("reaim_b5p"="MOUD within 30 days",
+#                            "reaim_c1p"="MOUD within 72 hours")
+MOUD_measure_labels = list("new_percentage_b5p"="MOUD within 30 days",
+                           "new_percentage_c1p"="MOUD within 72 hours")
 
 ##########
 # RE-AIM #
 ##########
 
 # Line plot for percent patients diagnosed with OUD on MOUD within 30 days & 72h
-make_MOUDplot = function(id, save=F, labels=F, dashed_line=F){
-  plot_data = report_data %>%
-    filter(program_id==id, variable %in% c("reaim_b5p","reaim_c1p"))
-
+make_MOUDplot = function(id, save=F, labels=T){
+  # Create custom quarters
+  start_date <- min(report_data$date, na.rm= TRUE)
+  # Calculate quarter data with an additional 'month' column for later use
+  quarter_data <- report_data %>%
+    filter(program_id == id, variable %in% c("reaim_c1p", "reaim_c1", "reaim_b2")) %>%
+    mutate(
+      months_since_start = interval(as.Date(start_date), date) / months(1),
+      quarter = floor(months_since_start / 3),
+      month = month(date)
+    )
+  
   # Handle position of "SITT-MAT Target" line
-  targetLabel_x = max(plot_data$date)
-  targetLabel_y = ifelse(plot_data[plot_data$date==targetLabel_x & plot_data$variable=="reaim_b5p","value"]>75,65,85)
+  targetLabel_x = max(quarter_data$date)
+  targetLabel_y = ifelse(quarter_data[quarter_data$date==targetLabel_x & quarter_data$variable=="reaim_c1p","value"]>75,65,85)
   # For manual adjustment of the target label, when needed
-  #targetLabel_x = ymd("2022-12-01")
+  targetLabel_x = ymd("2023-1-01")
   #targetLabel_y = 65
+  
+  last_month <- as.numeric(format(max(quarter_data$date), "%m"))
+  last_quarter <- max(quarter_data$quarter)
+
+  sum_data <- quarter_data %>%
+    mutate(grouping_period = if_else(quarter == last_quarter, 
+                                     (as.numeric(last_quarter) + (as.numeric(months_since_start) - 15) ),
+                                     as.numeric(quarter))) %>%
+    group_by(grouping_period, variable) %>%
+    summarise(value = sum(value, na.rm = TRUE), .groups = 'drop')
+  
+  # Spread data to wide format
+  wide_data <- pivot_wider(sum_data, names_from = variable, values_from = value)
+  # Calculate new percentages
+  wide_data <- wide_data %>%
+    mutate(
+      new_percentage_c1p = ifelse(reaim_c1 == 0 & reaim_b2 == 0, 0, (reaim_c1 / reaim_b2) * 100)
+    )
+
+  # Prepare plot data
+  plot_data <- wide_data %>%
+    pivot_longer(cols = c(new_percentage_c1p),
+                 names_to = "variable", values_to = "value") %>%
+    filter(variable %in% c("new_percentage_c1p"))
 
   # Handle presence (or absense) of labels
   if(labels){
-    label_vars = report_data %>%
-      filter(program_id==id,
-             variable %in% c("reaim_b5p", "reaim_c1p", "reaim_b5", "reaim_b2", "reaim_c1")) %>%
-      pivot_wider(id_cols=c("date"),
-                  names_from="variable",
-                  values_from="value")
+    label_vars <- wide_data
     label_data = rbind(label_vars %>%
-                         mutate(variable = "reaim_b5p",
-                                value = reaim_b5p,
-                                denom = paste0(reaim_b5,"/",reaim_b2)),
-                       label_vars %>%
-                         mutate(variable = "reaim_c1p",
-                                value = reaim_c1p,
+                         mutate(variable = "new_percentage_c1p",
+                                value = new_percentage_c1p,
                                 denom = paste0(reaim_c1,"/",reaim_b2)))
-    labels_geom = geom_label(data=label_data, aes(x=date, color=variable, y=value, label=denom), 
-                             label.padding=unit(0.1, "lines"), color=SITTMAT_colors[1], size=3, show.legend=F)
+    label_data$grouping_period = c(0,2,4,6,8,9,10,11)
+    # if not quarters, change x=quarter to x=date
+    labels_geom = geom_label(data=label_data, aes(x=grouping_period, color=variable, y=value, label=denom), 
+                             label.padding=unit(0.1, "lines"),size=3, show.legend=F)
   } else {
     labels_geom = geom_blank()
   }
   
-  # Handle dashed lines or none
-  if(dashed_line){
-    linetype_values = c("solid","dashed")
-  } else {
-    linetype_values = c("solid","solid")
+  # Function to insert NA rows between specific rows
+  insert_na_rows <- function(df, insert_positions, num_na_rows) {
+    for (pos in sort(insert_positions, decreasing = TRUE)) {
+      new_rows <- data.frame(
+        grouping_period = rep(NA, num_na_rows),
+        reaim_b2 = rep(NA, num_na_rows),
+        reaim_c1 = rep(NA, num_na_rows),
+        reaim_c1p = rep(NA, num_na_rows),
+        variable = rep("new_percentage_c1p", num_na_rows),
+        value = rep(NA, num_na_rows)
+      )
+      df <- rbind(df[1:pos, ], new_rows, df[(pos+1):nrow(df), ])
+    }
+    return(df)
   }
   
-  # Draw plot
-  plot = ggplot(plot_data) +
+  insert_positions <- c(1, 2, 3, 4)  # Positions to insert NA rows
+  num_na_rows <- 1  # Number of NA rows to insert at each position
+    data_with_na <- insert_na_rows(plot_data, insert_positions, num_na_rows)
+  # Reset the `grouping_period` column to be a sequence of integers
+  data_with_na$grouping_period <- seq(0, length.out = nrow(data_with_na), by = 1)
+  
+  x_labels <- c("Sep22 -\nNov22", "",  "Dec22 - \nFeb23", "",   "Mar23 - \nMay23",  "", "Jun23 - \nAug23","", "Sep23 - \nNov23", "Dec23", "Jan24", "Feb24")
+  min_x <- min(data_with_na$grouping_period, na.rm = TRUE)
+  max_x <- max(data_with_na$grouping_period, na.rm = TRUE)
+  
+  # Interpolate NA values using linear interpolation
+  data_with_na <- data_with_na %>%
+    group_by(variable) %>%
+    mutate(value = na.approx(value, na.rm = FALSE))
+
+  plot = ggplot(data_with_na) +
     geom_hline(yintercept=75, linetype="dashed", color=SITTMAT_colors[3]) +
-    geom_text(aes(x=targetLabel_x, y=targetLabel_y, label="SITT-MAT Target"), 
+    geom_text(aes(x=3, y=targetLabel_y, label="SITT-MAT Target"),
               color=SITTMAT_colors[3], size=3, family=font, fontface="bold",
               lineheight=0.75, hjust=0.8) +
-    geom_line(aes(x=date, color=variable, linetype=variable, y=value), linewidth=1) +
+    geom_line(aes(x=grouping_period, color=variable, y=value), linewidth=1) +
     labels_geom +
-    scale_color_manual(values=SITTMAT_colors[1:2], labels=~MOUD_measure_labels[.x]) +
-    scale_linetype_manual(values=linetype_values, guide="none") +
-    scale_x_date(date_breaks="month", date_labels="%b-%y") +
+    geom_vline(xintercept = last_quarter + 3.6, linetype = "dotted", color = SITTMAT_colors[4]) +
+    geom_text(aes(x = last_quarter+3, y = 55, label = "Previous \nQuarters"), color = SITTMAT_colors[4], size=2.5, family=font, fontface="bold") +
+    geom_text(aes(x = last_quarter+4.1, y = 55, label = "This \nQuarter"), color = SITTMAT_colors[4], size=2.5, family=font, fontface="bold") +
+    scale_color_manual(values=c(SITTMAT_colors[1], SITTMAT_colors[1]), labels=MOUD_measure_labels[2]) +
+    scale_x_continuous(labels = x_labels, breaks = seq(min_x, max_x, by = 1)) +
     scale_y_continuous(breaks=seq(0,100,25), labels=function(x) paste0(x,"%"), limits=c(0,100)) +
     theme_minimal() +
     theme(panel.grid.major.x = element_blank(),
           panel.grid.minor.x = element_blank(),
           panel.grid.minor.y = element_blank(),
           axis.title = element_blank(),
-          axis.text = element_text(size=8, family=font, color="black"),
-          axis.text.x = element_text(angle=-20, vjust=0, hjust=0.3),
+          axis.text = element_text(size=7.3, family=font, color="black"),
+          axis.text.x = element_text(angle=-10, vjust=0.5, hjust=0.3),
           plot.title = element_blank(),
           plot.margin = margin(t=3,r=4,b=-3),
-          
+
           legend.title = element_blank(),
           legend.position = "bottom",
           legend.text = element_text(size=8, family=font, color="black"),
           legend.margin = margin(t=-10)) +
     coord_cartesian(clip="off")
-  
+
   if(save){
     filepath = paste0("figures/QRIR_figures_",month_for_filenames,"/", id, "/", id, "_MOUDplot_", month_for_filenames, ".png")
     ggsave(here::here(filepath), plot, width=reaim_dims[1], height=reaim_dims[2], units="in")
@@ -106,37 +160,85 @@ make_MOUDplot = function(id, save=F, labels=F, dashed_line=F){
 }
 
 # Line plot for percent new patients prescribed MOUD with 2+ clinical visits in 34 days
-make_2Visits = function(id, save=F, labels=F){
-  plot_data = report_data %>%
-    filter(program_id==id, variable %in% c("reaim_c3p", "reaim_c3", "reaim_b2")) %>%
-    # Flip to get variables as columns
-    pivot_wider(id_cols=c(program_id, date),
-                names_from=variable,
-                values_from=value) %>%
-    filter(!is.na(reaim_c3p))
+make_2Visits = function(id, save=F, labels=T){
+  start_date <- min(report_data$date)
   
-  # Handle presence (or absense) of labels
-  if(labels){
-    labels_geom = geom_label(aes(x=date, y=reaim_c3p, color=program_id, label=paste(reaim_c3,"/",reaim_b2)), 
-                             label.padding=unit(0.1, "lines"), size=3, show.legend=F)
-  } else {
-    labels_geom = geom_blank()
+  quarter_data <- report_data %>%
+    filter(program_id == id, variable %in% c("reaim_c3p", "reaim_c3", "reaim_b5")) %>%
+    mutate(
+      months_since_start = interval(start_date, date) / months(1),
+      quarter = floor(months_since_start / 3),
+      month = month(date)
+      )
+  
+  last_month <- as.numeric(format(max(quarter_data$date), "%m"))
+  last_quarter <- max(quarter_data$quarter)
+  # Adjusting summarization based on whether it's the last quarter or not
+  sum_data <- quarter_data %>%
+    mutate(grouping_period = if_else(quarter == last_quarter, 
+                                     (as.numeric(last_quarter) + (as.numeric(months_since_start) - 15) ),
+                                     as.numeric(quarter))) %>%
+    group_by(grouping_period, variable) %>%
+    summarise(value = sum(value, na.rm = TRUE), .groups = 'drop')
+  
+  # Spread data to wide format
+  wide_data <- pivot_wider(sum_data, names_from = variable, values_from = value)
+  # Calculate new percentage
+  plot_data <- wide_data %>%
+    mutate(
+      new_percentage_c3p = ifelse(reaim_c3 == 0 & reaim_b5 == 0, 0, (reaim_c3 / reaim_b5) * 100)
+    )
+  
+
+  # Function to insert NA rows between specific rows
+  insert_na_rows <- function(df, insert_positions, num_na_rows) {
+    for (pos in sort(insert_positions, decreasing = TRUE)) {
+      new_rows <- data.frame(
+        grouping_period = rep(NA, num_na_rows),
+        reaim_b5 = rep(NA, num_na_rows),
+        reaim_c3 = rep(NA, num_na_rows),
+        reaim_c3p = rep(NA, num_na_rows),
+        new_percentage_c3p = rep(NA, num_na_rows)
+      )
+      df <- rbind(df[1:pos, ], new_rows, df[(pos+1):nrow(df), ])
+    }
+    return(df)
   }
   
-  plot = ggplot(plot_data, aes(x=date, y=reaim_c3p)) +
-    geom_line(aes(color=program_id), linewidth=1, show.legend=F) +
-    labels_geom +
+  insert_positions <- c(1, 2, 3, 4)  # Positions to insert NA rows
+  num_na_rows <- 1  # Number of NA rows to insert at each position
+  
+  data_with_na <- insert_na_rows(plot_data, insert_positions, num_na_rows)
+  data_with_na$grouping_period <- seq(0, length.out = nrow(data_with_na), by = 1)
+  # Interpolate NA values using linear interpolation for new_percentage_c3p
+  data_with_na <- data_with_na %>%
+    mutate(new_percentage_c3p = na.approx(new_percentage_c3p, na.rm = FALSE))
+
+  data_labels <- data_with_na %>%
+    filter(!is.na(reaim_c3) & !is.na(reaim_b5))
+  
+  x_labels <- c("Sep22 -\nNov22", "",  "Dec22 - \nFeb23", "",   "Mar23 - \nMay23",  "", "Jun23 - \nAug23","", "Sep23 - \nNov23", "Dec23", "Jan24", "Feb24")
+  min_x <- min(data_with_na$grouping_period, na.rm = TRUE)
+  max_x <- max(data_with_na$grouping_period, na.rm = TRUE)
+  
+  plot = ggplot(data_with_na, aes(x=grouping_period, y=new_percentage_c3p)) +
+    geom_line(aes(color="black"), linewidth=1, show.legend=F) +
+    geom_label(data = data_labels, aes(x = grouping_period, y = new_percentage_c3p,
+                                       label = paste0(reaim_c3, "/", reaim_b5)), color=SITTMAT_colors[1], label.padding=unit(0.1, "lines"),size=3, show.legend=F)+
     scale_color_manual(values=SITTMAT_colors) +
-    scale_x_date(date_breaks="month", date_labels="%b-%y") +
+    geom_vline(xintercept = last_quarter +3.6, linetype = "dotted", color = SITTMAT_colors[4]) +
+    geom_text(aes(x = last_quarter+2.7, y = 80, label = "Previous \nQuarters"),  color = SITTMAT_colors[4], size=2.5, family=font, fontface="bold") +
+    geom_text(aes(x = last_quarter+4.2, y = 80, label = "This \nQuarter"), color = SITTMAT_colors[4], size=2.5, family=font, fontface="bold") +
+    scale_x_continuous(labels = x_labels, breaks = seq(min_x, max_x, by = 1)) +
     scale_y_continuous(breaks=seq(0,100,25), labels=function(x) paste0(x,"%"), limits=c(0,100)) +
     theme_minimal() +
     theme(panel.grid.major.x = element_blank(),
           panel.grid.minor.x = element_blank(),
           panel.grid.minor.y = element_blank(),
-          plot.margin = margin(t=3,r=13),
-          axis.text.x = element_text(angle=-20, vjust=0, hjust=0.3),
+          plot.margin = margin(t=5,r=13, b=3),
+          axis.text.x = element_text(angle=-12, vjust=0.5, hjust=0.3),
           axis.title = element_blank(),
-          axis.text = element_text(size=10, family=font, color="black")) +
+          axis.text = element_text(size=7.3, family=font, color="black")) +
     coord_cartesian(clip="off")
   
   if(save){
@@ -154,9 +256,48 @@ make_referralLinkage = function(id, save=F){
                          "reaim_c7p"="Referred but did not confirm linkage",
                          "reaim_c8p"="No referral")
   
-  plot_data = report_data %>%
-    filter(program_id==id, variable %in% referral_vars) %>%
-    mutate(variable = factor(variable, levels=rev(referral_vars), ordered=T))
+  # plot_data = report_data %>%
+  #   filter(program_id==id, variable %in% referral_vars) %>%
+  #   mutate(variable = factor(variable, levels=rev(referral_vars), ordered=T))
+  # 
+  # print(plot_data)
+  
+  # Create custom quarters
+  start_date <- min(report_data$date)
+  # Calculate quarter data with an additional 'month' column for later use
+  quarter_data <- report_data %>%
+    filter(program_id == id, variable %in% referral_vars) %>%
+    mutate(
+      date = as.Date(date),
+      months_since_start = interval(as.Date(start_date), date) / months(1),
+      quarter = floor(months_since_start / 3),
+      month = month(date)
+    )
+  
+  last_month <- format(max(quarter_data$date), "%m")
+  last_quarter <- max(quarter_data$quarter)
+  
+  # Adjusting summarization based on whether it's the last quarter or not
+  sum_data <- quarter_data %>%
+    mutate(grouping_period = if_else(quarter == last_quarter, (as.numeric(last_quarter) + (as.numeric(last_month) - as.numeric(month)) ), as.numeric(quarter))) %>%
+    group_by(grouping_period, variable) %>%
+    summarise(value = sum(value, na.rm = TRUE), .groups = 'drop')
+  
+  # Spread data to wide format
+  wide_data <- pivot_wider(sum_data, names_from = variable, values_from = value)
+  # Calculate new percentages
+  wide_data <- wide_data %>%
+    mutate(
+      new_percentage_c6p = (reaim_c1 / reaim_b2) * 100,
+      new_percentage_c7p = (reaim_c1 / reaim_b2) * 100,
+      new_percentage_c8p = (reaim_c1 / reaim_b2) * 100,
+    )
+  
+  # Prepare plot data
+  plot_data <- wide_data %>%
+    pivot_longer(cols = c(new_percentage_c1p),
+                 names_to = "variable", values_to = "value") %>%
+    filter(variable %in% c("new_percentage_c1p"))
   
   plot = ggplot(plot_data, aes(x=date, y=value)) +
     geom_col(aes(fill=variable), width=10) +
@@ -237,7 +378,7 @@ make_imat = function(id, save=F, imat_dates=NULL){
       pull()
     plot_data$display_date = factor(plot_data$display_date, levels=ordered_display_dates, ordered=T)
   }
-  
+
   plot = ggplot(plot_data, aes(x=variable, y=value, group=display_date)) +
     geom_line(aes(color=display_date), linewidth=2) +
     scale_color_manual(values=SITTMAT_colors) +
@@ -315,24 +456,29 @@ make_allPlots = function(id, save_plots=F, show_plots=T){
     print(p)
     invisible(readline(prompt="Press [enter] to continue"))
   }
-  p = make_imat(id, save=save_plots, imat_dates=c("Sep22", "Apr23"))
+  p = make_imat(id, save=save_plots)
   if(show_plots) print(p)
 }
 # Define which sites you want to produce plots for
 #programs = sort(unique(report_data[grepl("reaim_b5p",report_data$variable),"program_id"]))
-programs = c("id15","id44"); reaim_dims=c(5.4,2.1)
+# programs = paste0("id",c(64:73))
+programs = c("id35")
+# reaim_dims=c(5.4,2.2)
 # Iterate through programs & produce all plots
-imat_size="short"
-for(program in programs){
-  make_allPlots(program, save_plots=T, show_plots=F)
-}
-
-
-# Produce only IMAT (for sites that don't have REAIM data)
-#imat_programs = sort(unique(report_data$program_id[!report_data$program_id%in%programs]))
-imat_programs = paste0("id",c(64:73))
 imat_size="tall"
-for(program in imat_programs){
-  print(paste0("Creating IMAT plot for ", program))
-  make_imat(program, save=T, imat_dates=c("Sep22", "Apr23"))
+for(program in programs){
+  make_MOUDplot(program, save=T)
+  # make_referralLinkage(program, save=T)
+  make_2Visits(program, save=T)
+  # make_imat(program, save=T)
 }
+
+
+# # Produce only IMAT (for sites that don't have REAIM data)
+# #imat_programs = sort(unique(report_data$program_id[!report_data$program_id%in%programs]))
+# imat_programs = paste0("id",c(64:73))
+# imat_size="tall"
+# for(program in imat_programs){
+#   print(paste0("Creating IMAT plot for ", program))
+#   make_imat(program, save=T)
+# }
