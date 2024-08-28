@@ -11,7 +11,7 @@ source(here::here("code/__utils.R"))
 # Should the raw data be pulled from the API? If false, the file needs to be in the raw_data folder with proper naming
 #   By default, use redcap API unless the variable is declared in the environment elsewhere
 #   Set this value to FALSE to use local files
-get_raw_from_api = ifelse(exists("get_raw_from_api"),get_raw_from_api,T)
+get_raw_from_api = ifelse(exists("get_raw_from_api"), get_raw_from_api, T)
 
 ##########
 # Import #
@@ -34,8 +34,8 @@ if(get_raw_from_api){
 #######################
 # Load & Process Data #
 #######################
-raw_SUD = sud_info %>% 
-  filter(imp_support != 5) %>%
+clean_SUD = sud_info %>% 
+  filter(if_any(starts_with("demo"), ~!is.na(.x))) %>%
   mutate(site_type = "SUD",
          demo_level_of_care = as.character(demo_level_of_care),
          isOutpatient = grepl("1", demo_level_of_care) | grepl("2", demo_level_of_care),
@@ -48,9 +48,9 @@ raw_SUD = sud_info %>%
          ),
          demo_goal = factor(demo_goal, levels=c(1,2), labels=c("Start MOUD", "Expand MOUD")))
 
-# Assuming all primary cares are outpatient
-raw_PC = pc_info %>% 
-  filter(imp_support != 5) %>%
+# Assumes all primary cares are outpatient
+clean_PC = pc_info %>% 
+  filter(if_any(starts_with("demo"), ~!is.na(.x))) %>%
   mutate(site_type="PC",
          isOutpatient = T,
          isInpatient = F,
@@ -66,6 +66,11 @@ raw_PC = pc_info %>%
 # Export #
 ##########
 
-saveRDS(bind_rows(select(raw_SUD, program_id, demo_goal, site_type, care_level),
-                  select(raw_PC, program_id, demo_goal, site_type, care_level)), 
-        file="data/program_info.rds")
+saveRDS(bind_rows(clean_SUD, clean_PC) %>%
+          filter(imp_support != 5) %>%
+          select(program_id, demo_goal, site_type, care_level), 
+        file="data/study_program_info.rds")
+
+saveRDS(bind_rows(clean_SUD, clean_PC) %>%
+          select(program_id, demo_goal, site_type, care_level), 
+        file="data/all_program_info.rds")
