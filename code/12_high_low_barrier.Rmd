@@ -1,0 +1,90 @@
+---
+title: "Low vs. Standard Barrier Care"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(here)
+library(table1)
+library(tidyverse)
+
+reaim = readRDS(here("data/current_reaim.rds")) %>%
+  filter(variable %in% c("reaim_b5p", "reaim_c1p", "reaim_c3p")) %>%
+  pivot_wider(names_from = variable,
+              values_from = value)
+imat = readRDS(here("data/current_imat_subscale.rds")) %>%
+  filter(variable=="imat_s1", date==as.Date("2022-09-01")) %>%
+  mutate(barrier = if_else(value>median(value, na.rm=T), "Low", "Standard")) %>%
+  select(-complete_display_date, -date) %>%
+  pivot_wider(names_from = variable,
+              values_from = value)
+
+analysis_df = imat %>%
+  left_join(reaim, join_by("program_id"))
+```
+
+## Data Export
+
+The data for this analysis can be found in this file:
+
+```{r data}
+write_csv(analysis_df, "data/low_barrier_care_analysis.csv")
+```
+
+## Summary
+
+Get count and summary statistics of the key measures by Low/Standard barrier. Note the summary statistics are only for September 2022, October 2022, May 2023, and December 2023.
+
+```{r summary}
+# Get number of clinics in each group
+analysis_df %>%
+  group_by(barrier) %>%
+  summarise(clinic_count = length(unique(program_id)))
+
+# Get summary statistics by group
+# NOTE: For all dates
+label(analysis_df$reaim_b5p) = "% New Patients on MOUD within 30 days"
+label(analysis_df$reaim_c1p) = "% New Patients on MOUD within 72 hours"
+label(analysis_df$reaim_c3p) = "% New Patients with 2+ visits within 34 days"
+
+desired_dates = as_datetime(c("2022-09-01", "2022-10-01", "2023-05-01", "2023-12-01"))
+
+table1(~reaim_b5p + reaim_c1p + reaim_c3p | barrier,
+       data=analysis_df %>%
+         filter(date %in% desired_dates))
+```
+
+## Plots
+
+These are plots of the selected variables through time by barrier type. More filled in dots indicate more observations at that point. The lines are splines of best fit and the ribbons are measures of spread. The lines and ribbons are methods of visualizing trends, not a formal statistical test. The estimates for more recent months are less reliable as some clinics' data have not been entered yet.
+
+### Percent on MOUD within 30 days
+
+```{r b5p_plot, echo=F, message=F, warning=F}
+ggplot(analysis_df, aes(y=reaim_b5p, x=date, color=barrier)) +
+  geom_point(alpha=0.2) +
+  geom_smooth()
+```
+
+At the beginning of the study, the Low Barrier clinics have a higher percent of OUD patients receiving MOUD within 30 days, however the Standard Barrier clinics have closed this gap as the study has progressed.
+
+### Percent on MOUD within 72 hours
+
+```{r c1p_plot, echo=F, message=F, warning=F}
+ggplot(analysis_df, aes(y=reaim_c1p, x=date, color=barrier)) +
+  geom_point(alpha=0.2) +
+  geom_smooth()
+```
+
+At the beginning of the study, it seems that Low Barrier clinics had slightly higher rates of getting patients on MOUD within 72 hours of OUD diagnosis. This difference is not large and goes away as the study progresses.
+
+## Percent 2+ visits within 34 days
+
+```{r c3p_plot, echo=F, message=F, warning=F}
+ggplot(analysis_df, aes(y=reaim_c3p, x=date, color=barrier)) +
+  geom_point(alpha=0.2) +
+  geom_smooth()
+```
+
+The difference between the groups is present but much smaller throughout the study for 2+ visits within 34 days of starting MOUD. Both groups increase throughout the study period.
