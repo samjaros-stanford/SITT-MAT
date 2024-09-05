@@ -9,8 +9,8 @@
 reaim = readRDS("data/current_reaim.rds")
 imat_item = readRDS("data/current_imat_item.rds")
 imat_subscale = readRDS("data/current_imat_subscale.rds")
-cdi_item = readRDS("data/current_long_cdi.rds")
-# cdi_subscale = TBD, current subscale is barrier/neutral/facilitator
+cdi_item = readRDS("data/current_cdi_item.rds")
+cdi_subscale = readRDS("data/current_cdi_subscale.rds")
 
 # Clean & Combine ##############################################################
 clean_reaim = reaim %>%

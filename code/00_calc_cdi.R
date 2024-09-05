@@ -135,4 +135,5 @@ cdi_cat = long_cdi %>%
 
 write.csv(cdi_score, file=paste0("data/",output_prefix,"score.csv"), row.names=F)
 write.csv(cdi_cat, file=paste0("data/",output_prefix,"cat.csv"), row.names=F)
-saveRDS(long_cdi, file="data/current_long_cdi.rds")
+saveRDS(long_cdi, file="data/current_cdi_item.rds")
+saveRDS(cdi_cat, file="data/current_cdi_subscale.rds")
