@@ -8,7 +8,7 @@ library(tidyverse)
 # Settings #
 ############
 # Long CDI location
-cdi_long_file = "data/current_long_cdi.rds"
+cdi_long_file = "data/current_cdi_item.rds"
 # Current RE-AIM/IMAT location
 imat_reaim_file = "data/current_reaim-imat.rds"
 # Include "Does not apply (8)" in the Likert value regression?
