@@ -38,11 +38,34 @@ clean_imat = imat_item %>%
   # Select only desired columns
   select(program_id, col_name, value)
 
+clean_cdi = cdi_item %>%
+  pivot_longer(cols = c(value, cat),
+               names_to = "measure_type",
+               values_to = "measure_value",
+               values_transform = as.character) %>%
+  arrange(q_num, date) %>%
+  bind_rows(cdi_subscale %>%
+              rename(item=subscale) %>%
+              pivot_longer(
+                cols = c(barriers, neutral, facilitators),
+                names_to = "measure_type",
+                values_to = "measure_value",
+                values_transform = as.character)
+              ) %>%
+  mutate(col_name = paste0(tolower(format(date, "%b_%Y")), "_", item, "_", measure_type)) %>%
+  pivot_wider(id_cols = program_id,
+              names_from = col_name,
+              values_from = measure_value) %>%
+  mutate(across(ends_with(c("score", "barriers", "neutral", "facilitators")), as.numeric))
+
+# NOTE: CDI was already flipped to wide so I could transform the columns where needed
 ultrawide = clean_reaim %>%
   bind_rows(clean_imat) %>%
   pivot_wider(id_cols = program_id,
               names_from = col_name,
-              values_from = value)
+              values_from = value) %>%
+  left_join(clean_cdi, join_by("program_id")) %>%
+  arrange(program_id)
 
 # Export #######################################################################
-write.csv(ultrawide, "data/ultrawide_reaim-imat_forHannah.csv")
+write_csv(ultrawide, "data/ultrawide_reaim-imat-cdi.csv")
