@@ -10,8 +10,6 @@ source(here::here("code/__utils.R"))
 # Settings #
 ############
 
-# New comments
-
 # How to deal with "Does not apply (8)"
 dna = 4 #4 makes neutral, NA makes it missing
 # Cutoff for neutral. 0 means only 4 is neutral. 1 means 3,4,5 are neutral.
