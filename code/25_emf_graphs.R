@@ -89,6 +89,7 @@ make_MOUDplot = function(id, save=F, labels=T){
       filter(variable == "new_percentage_c1p")
     targetLabel_x = max(plot_data$date)
     plot_data$variable <- "MOUD within 72 hours"
+    
     plot = ggplot(plot_data) +
       geom_hline(yintercept=75, linetype="dashed", color=SITTMAT_colors[3]) +
       geom_text(aes(x=targetLabel_x, y=targetLabel_y, label="SITT-MAT Target"), 
@@ -141,12 +142,14 @@ make_MOUDplot = function(id, save=F, labels=T){
       mutate(
         new_percentage_c1p = ifelse(reaim_c1 == 0 & reaim_b2 == 0, 0, (reaim_c1 / reaim_b2) * 100)
       )
+
     
     # Prepare plot data
     plot_data <- wide_data %>%
       pivot_longer(cols = c(new_percentage_c1p),
                    names_to = "variable", values_to = "value") %>%
       filter(variable %in% c("new_percentage_c1p"))
+    
     
     # Handle presence (or absense) of labels
     if(labels){
@@ -666,8 +669,8 @@ reaim_dims=c(5.4,2.2)
 for(program in programs){
   make_MOUDplot(program, save=T)
   # make_referralLinkage(program, save=T)
-  make_2Visits(program, save=T)
-  make_imat(program, save=T)
+  # make_2Visits(program, save=T)
+  # make_imat(program, save=T)
 }
 
 
