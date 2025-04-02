@@ -8,6 +8,7 @@ output: html_document
 ```{r setup}
 # Package install
 require(lubridate)
+require(readxl)
 require(table1)
 require(tidyverse)
 source(here::here("code/__utils.R"))
@@ -20,6 +21,11 @@ survey_date = ymd("2022-09-01")
 # Load Data
 
 ```{r data}
+# Get sites used in MMCS from tracking document
+site_info = read_excel(path="C://Users//samja//OneDrive - Stanford//SITT-MAT//Mixed Methods Community Support//Manuscript//MMCS - Participant Tracker.xlsx") %>%
+  select(program_id, MMCS_status, completed_interview, urbanity, type, specialty) %>%
+  filter(!is.na(MMCS_status))
+
 #Get info for whether studies were included in MMCS and whether they did an interview
 mmcs_info = read_csv(here::here("raw_data/mmcs_info.csv"))
   
@@ -66,18 +72,17 @@ imat = bind_rows(get_redcap_report("SC", "119747") %>%
 
 program_info = readRDS(here::here("data/all_program_info.rds"))
 
-study_data = mmcs_info %>%
-  left_join(full_join(cdi, imat, by=c("program_id", "date")) %>%
-              full_join(program_info, by="program_id")) %>%
-  filter(in_mmcs,
-         !(program_id %in% paste0("id",54:62)))
+study_data = site_info %>%
+  left_join(cdi, by=join_by("program_id")) %>%
+  left_join(imat, by=c("program_id", "date"))
 ```
 
 # Summary Stats
 
 ```{r summary_stats}
-table1(~site_type + care_level + urbanity | factor(did_interview),
-       data=study_data)
+summary(study_data)
+
+table1(~urbanity + type + specialty | completed_interview, data=study_data)
 
 # Get mean question scores
 study_data %>%
@@ -122,4 +127,3 @@ pc_analysis = prcomp(study_data %>%
 summary(pc_analysis)
 pc_analysis$rotation
 ```
-
