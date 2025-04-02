@@ -11,34 +11,66 @@ require(lubridate)
 require(readxl)
 require(table1)
 require(tidyverse)
+source(here::here("code/__utils.R"))
 
 # Settings
-dna = NA #0 makes neutral, NA makes it missing
+dna = NA #4 makes neutral, NA makes it missing
 survey_date = ymd("2022-09-01")
+```
 
-# Data loading
+# Load Data
+
+```{r data}
 # Get sites used in MMCS from tracking document
 site_info = read_excel(path="C://Users//samja//OneDrive - Stanford//SITT-MAT//Mixed Methods Community Support//Manuscript//MMCS - Participant Tracker.xlsx") %>%
   select(program_id, MMCS_status, completed_interview, urbanity, type, specialty) %>%
   filter(!is.na(MMCS_status))
 
+#Get info for whether studies were included in MMCS and whether they did an interview
+mmcs_info = read_csv(here::here("raw_data/mmcs_info.csv"))
+  
+# Get CDI from API, not excluding studies that later dropped out
 cdi_questions_of_interest = paste0("0",3:8)
-cdi = readRDS(here::here("data/current_long_cdi.rds")) %>%
+cdi_scoring = read_csv(here::here("public_data/cdi_scoring.csv"))
+cdi = bind_rows(get_redcap_report("SC", "110001"), 
+                get_redcap_report("PC", "110006")) %>%
+  select(program_id, redcap_event_name, starts_with("cdi_")) %>%
+  pivot_longer(c(starts_with("cdi_"),-"cdi_team_report_timestamp"),
+               names_to="item",
+               values_to="value", 
+               values_drop_na=T) %>%
+  # Bring in scoring information
+  left_join(cdi_scoring, by="item") %>%
+  # Put score in terms of centered around 0
+  # Modify missing as needed
+  # Reverse scales where needed
+  mutate(centered_score = case_when(value==8  ~ dna-4, 
+                                    isReverse ~ (value-4)*-1, 
+                                    T         ~ value-4),
+         score = centered_score+4) %>%
+  mutate(date = fast_strptime(str_extract(redcap_event_name, 
+                                          "^([a-z]*_[0-9]*)"), "%b_%Y"))%>%
+  # Get only the observations & variables needed for MMCS
   filter(date==survey_date) %>%
   filter(q_num %in% cdi_questions_of_interest) %>%
-  mutate(scaled_value=if_else(value==8,dna,value)) %>%
   pivot_wider(id_cols = c(program_id, date),
               names_from = q_num,
               names_prefix = "cdi_",
-              values_from = scaled_value)
+              values_from = score)
 
-imat = readRDS(here::here("data/current_imat_item.rds")) %>%
-  filter(date==survey_date, variable=="imat_d5_6") %>%
-  pivot_wider(id_cols = c(program_id, date),
-              names_from = variable,
-              values_from = value)
+# Get IMAT data directly from API
+imat = bind_rows(get_redcap_report("SC", "119747") %>%
+                   mutate(across(contains("_count_"), ~as.character(.x))),
+                 get_redcap_report("PC", "119745") %>%
+                   mutate(across(contains("_count_"), ~as.character(.x)))) %>%
+  # Remove incomplete surveys (completion!=2)
+  filter(imatpc_team_report_complete==2 | imatsc_team_report_complete==2) %>%
+  # Get survey date from redcap event
+  mutate(date = my(substr(redcap_event_name, 1, 8))) %>%
+  filter(date==survey_date) %>%
+  select(program_id, date, imat_d5_6)
 
-program_info = readRDS(here::here("data/program_info.rds"))
+program_info = readRDS(here::here("data/all_program_info.rds"))
 
 study_data = site_info %>%
   left_join(cdi, by=join_by("program_id")) %>%
@@ -61,12 +93,14 @@ study_data %>%
                                 4 ~ 5.5,
                                 5 ~ 7,
                                 .default=NA)) %>%
-  summarize(across(cdi_03:imat_d5_6, list(mean=~mean(.x,, na.rm=T),
-                                          sd=~sd(.x, na.rm=T))))
+  summarize(across(cdi_03:imat_d5_6, 
+                   list(mean=~mean(.x,, na.rm=T), sd=~sd(.x, na.rm=T)),
+                   .names="{.col}!{.fn}")) %>%
+  pivot_longer(cols=everything(),
+               names_pattern = "(.*)!(.*)",
+               names_to = c("question",".value"))
 
-# Get SDs of question scores
-study_data %>%
-  summarize(across(cdi_03:imat_d5_6, ~sd(.x, na.rm=T)))
+
 ```
 
 # Chronbach Alpha
@@ -93,4 +127,3 @@ pc_analysis = prcomp(study_data %>%
 summary(pc_analysis)
 pc_analysis$rotation
 ```
-

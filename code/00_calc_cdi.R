@@ -135,8 +135,8 @@ cdi_cat = long_cdi %>%
 # Export #
 ##########
 
-write.csv(cdi_score, file=paste0("data/",output_prefix,"score.csv"), row.names=F)
-write.csv(cdi_cat, file=paste0("data/",output_prefix,"cat.csv"), row.names=F)
+write.csv(cdi_score, file=paste0("data/", output_prefix, "score.csv"), row.names=F)
+write.csv(cdi_cat, file=paste0("data/", output_prefix, "cat.csv"), row.names=F)
 saveRDS(long_cdi, file="data/current_long_cdi.rds")
 
 # Get data for report ==========================================================

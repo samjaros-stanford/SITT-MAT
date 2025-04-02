@@ -24,7 +24,7 @@ collapse_53_to_62 = F #Should sites 53-62 be combined and reassigned to 89?
 ########
 
 ### CDI
-long_cdi = readRDS(here::here("data/current_long_cdi.rds")) %>%
+long_cdi = readRDS(here::here("data/current_cdi_item.rds")) %>%
   mutate(scaled_value=if_else(value==8,dna,value)) %>%
   select(program_id, type, date, q_num, subscale, item, scaled_value) %>%
   # Include site group information

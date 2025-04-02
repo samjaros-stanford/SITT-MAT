@@ -7,7 +7,7 @@ library(webshot2)
 # Settings #
 ############
 # Long CDI location
-cdi_long_file = "data/current_long_cdi.rds"
+cdi_long_file = "data/current_cdi_item.rds"
 # Include "Does not apply (8)" in the mean calculation?
 #   NOTE: Barriers/facilitators calculation is unaffected
 dna = NA_real_ #4 makes neutral, NA_real_ doesn't include it in the mean
