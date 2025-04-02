@@ -54,3 +54,10 @@ long_reaim = flip_reaim(sud_reaim) %>%
 
 ### Output #####################################################################
 saveRDS(long_reaim, "data/current_reaim.rds")
+
+# Get data for report ==========================================================
+reaim_to_report = long_reaim %>%
+  select(program_id, date, variable, value) %>%
+  arrange(program_id, variable, date)
+
+write_csv(reaim_to_report, file="data/SITTMAT_report_data/sittmat_reaim.csv")

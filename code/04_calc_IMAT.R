@@ -41,9 +41,12 @@ raw_imat = pc_imat %>%
   filter(imatpc_team_report_complete==2 | imatsc_team_report_complete==2) %>%
   # Get survey date from redcap event
   mutate(date = my(substr(redcap_event_name, 1, 8)),
-         complete_display_date = if_else(is.na(imat_completion_date), date, ymd(imat_completion_date))) %>%
+         complete_display_date = if_else(is.na(imat_completion_date), 
+                                         date, 
+                                         (imat_completion_date))) %>%
   # Select only desired columns (no comment columns)
-  select(program_id, date, starts_with("imat_d"), imat_total_mean, -ends_with("_c"), complete_display_date) %>%
+  select(program_id, date, starts_with("imat_d"), imat_total_mean, 
+         -ends_with("_c"), complete_display_date, event_label = analysis_event_label_2) %>%
   # Remove rows where all data are NA
   filter(if_any(starts_with("imat"), ~!is.na(.x)))
 
@@ -52,7 +55,7 @@ raw_imat = pc_imat %>%
 #############
 item_imat = raw_imat %>%
   select(-ends_with("_mean")) %>%
-  pivot_longer(-c(program_id, date, complete_display_date),
+  pivot_longer(starts_with("imat_"),
                names_to="variable",
                values_to="value")
 
@@ -60,7 +63,7 @@ item_imat = raw_imat %>%
 # Dimensions & Subscales #
 ##########################
 subscale_imat = raw_imat %>%
-  select(date, program_id, ends_with("_mean"), complete_display_date) %>%
+  select(date, program_id, ends_with("_mean"), complete_display_date, event_label) %>%
   pivot_longer(ends_with("_mean"),
                names_pattern="(.*)_mean",
                names_to="variable",
@@ -71,7 +74,7 @@ subscale_imat = raw_imat %>%
           mutate(imat_s1_mean = mean(c(imat_d3_11,imat_d3_12,imat_d3_14,imat_d4_9,
                                        #imat_d4_11, imat_d4_12, 
                                        imat_d5_5,imat_d5_6,imat_d6_1,imat_d6_2,imat_d7_3), na.rm=T)) %>%
-          select(date, program_id, imat_s1_mean, complete_display_date) %>%
+          select(date, program_id, imat_s1_mean, complete_display_date, event_label) %>%
           pivot_longer(imat_s1_mean,
                        names_pattern="(.*)_mean",
                        names_to="variable",
@@ -84,3 +87,12 @@ subscale_imat = raw_imat %>%
 saveRDS(item_imat, "data/current_imat_item.rds")
 saveRDS(subscale_imat, "data/current_imat_subscale.rds")
 
+# Get data for report ==========================================================
+imat_to_report = item_imat %>%
+  mutate(imat_type = "raw_item") %>%
+  bind_rows(subscale_imat %>%
+              mutate(imat_type = "subscale_score")) %>%
+  select(program_id, date, variable, value, imat_type, event_label) %>%
+  arrange(program_id, variable, date)
+
+write_csv(imat_to_report, file="data/SITTMAT_report_data/sittmat_imat.csv")

@@ -45,7 +45,9 @@ if(get_raw_from_api){
 raw_cdi = bind_rows(mutate(sud_cdi, type="SUD"), 
                     mutate(pc_cdi, type="PC")) %>%
   # Remove sites that have withdrawn
-  filter(imp_support!=5) %>%
+  #filter(imp_support!=5) %>%
+  # Remove test sties
+  filter(!(program_id%in%c("id00","id50"))) %>%
   select(-imp_support)
 
 ###########################
@@ -136,3 +138,28 @@ cdi_cat = long_cdi %>%
 write.csv(cdi_score, file=paste0("data/",output_prefix,"score.csv"), row.names=F)
 write.csv(cdi_cat, file=paste0("data/",output_prefix,"cat.csv"), row.names=F)
 saveRDS(long_cdi, file="data/current_long_cdi.rds")
+
+# Get data for report ==========================================================
+cdi_to_report = long_cdi %>%
+  # Individual items
+  select(program_id, date, item, value) %>%
+  mutate(cdi_type = "raw_item") %>%
+  # Subscores
+  bind_rows(cdi_score %>%
+              pivot_longer(cols = starts_with("cdi_"), 
+                           names_to = "item",
+                           values_to = "value") %>%
+              select(program_id, date, item, value) %>%
+              mutate(cdi_type = "scale_score")) %>%
+  # Barriers/Neutral/Facilitators
+  bind_rows(cdi_cat %>%
+              pivot_longer(cols = c("barriers", "neutral", "facilitators"),
+                           names_to = "affect",
+                           values_to = "value") %>%
+              mutate(item = paste0(subscale, "_", affect),
+                     cdi_type = "scale_bnf") %>%
+              select(program_id, date, item, value, cdi_type)) %>%
+  rename(variable = item) %>%
+  arrange(program_id, variable, date)
+
+write_csv(cdi_to_report, file="data/SITTMAT_report_data/sittmat_cdi.csv")  
