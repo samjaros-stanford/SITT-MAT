@@ -8,15 +8,19 @@ output: html_document
 ```{r setup}
 # Package install
 require(lubridate)
+require(readxl)
+require(table1)
 require(tidyverse)
-
 
 # Settings
 dna = NA #0 makes neutral, NA makes it missing
 survey_date = ymd("2022-09-01")
 
 # Data loading
-site_info = readRDS(here::here("data/program_info.rds"))
+# Get sites used in MMCS from tracking document
+site_info = read_excel(path="C://Users//samja//OneDrive - Stanford//SITT-MAT//Mixed Methods Community Support//Manuscript//MMCS - Participant Tracker.xlsx") %>%
+  select(program_id, MMCS_status, completed_interview, urbanity, type, specialty) %>%
+  filter(!is.na(MMCS_status))
 
 cdi_questions_of_interest = paste0("0",3:8)
 cdi = readRDS(here::here("data/current_long_cdi.rds")) %>%
@@ -36,9 +40,9 @@ imat = readRDS(here::here("data/current_imat_item.rds")) %>%
 
 program_info = readRDS(here::here("data/program_info.rds"))
 
-study_data = left_join(cdi, imat, by=c("program_id", "date")) %>%
-  left_join(program_info, by="program_id") %>%
-  filter(!(program_id %in% paste0("id",54:62)))
+study_data = site_info %>%
+  left_join(cdi, by=join_by("program_id")) %>%
+  left_join(imat, by=c("program_id", "date"))
 ```
 
 # Summary Stats
@@ -46,7 +50,7 @@ study_data = left_join(cdi, imat, by=c("program_id", "date")) %>%
 ```{r summary_stats}
 summary(study_data)
 
-
+table1(~urbanity + type + specialty | completed_interview, data=study_data)
 
 # Get mean question scores
 study_data %>%
