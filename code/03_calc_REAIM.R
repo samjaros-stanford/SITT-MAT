@@ -29,7 +29,7 @@ if(get_raw_from_api){
 flip_reaim = function(df) {
   df %>%
     # Keep rows that have any REAIM data
-    filter(if_any(starts_with("reaim_"), ~!(.x))) %>%
+    filter(if_any(starts_with("reaim_"), ~!is.na(.x))) %>%
     # Keep program id, event name (that has the date), and all REAIM cols
     select(program_id, redcap_event_name, starts_with("reaim_")) %>%
     # Flip to long
