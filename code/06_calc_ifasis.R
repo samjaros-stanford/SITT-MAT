@@ -34,10 +34,7 @@ raw_ifasis = bind_rows(mutate(sud_ifasis, type="SUD"),
                     mutate(pc_ifasis, type="PC")) %>%
   # Remove rows that contain no data
   filter(if_any(starts_with("ifasis_"), ~!is.na(.x))) %>%
-  # Get only complete surveys
-  filter(facilitators_barriers_inventory_team_report_complete == 2) %>%
-  select(-facilitators_barriers_inventory_team_report_complete) %>%
-  # Remove test sties
+  # Remove test sites
   filter(!(program_id %in% c("id00","id50"))) %>%
   # Extract date from redcap event
   mutate(date = fast_strptime(str_extract(redcap_event_name, 
@@ -74,8 +71,10 @@ ifasis_subscale = raw_ifasis %>%
 # Export #
 ##########
 
-write_csv(ifasis_score, file=paste0("data/",output_prefix,"score.csv"))
-write_csv(ifasis_subscale, file=paste0("data/",output_prefix,"subscale.csv"))
+write_csv(ifasis_score, file=paste0("data/", output_prefix, "score.csv"))
+write_csv(ifasis_subscale, file=paste0("data/", output_prefix, "subscale.csv"))
+saveRDS(ifasis_score, file=here("data/current_ifasis_score.rds"))
+saveRDS(ifasis_subscale, file=here("data/current_ifasis_subscale.rds"))
 
 # Get data for report ==========================================================
 ifasis_to_report = ifasis_score %>%

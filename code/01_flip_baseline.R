@@ -44,8 +44,7 @@ if(get_raw_from_api){
 
 # Import and stack raw data
 raw_reaim = bind_rows(mutate(sud_reaim, type="SUD"), 
-                      mutate(pc_reaim, type="PC")) %>%
-  filter(imp_support!=5)
+                      mutate(pc_reaim, type="PC"))
 
 # Get long data
 long_reaim = raw_reaim %>%
@@ -89,7 +88,7 @@ pc_imat$imat_count_4 = as.numeric(pc_imat$imat_count_4)
 # Import and stack raw data
 raw_imat = bind_rows(mutate(sud_imat, type="SUD"), 
                      mutate(pc_imat, type="PC")) %>%
-  filter(imp_support!=5 & redcap_event_name=="sep_2022_arm_1")
+  filter(redcap_event_name=="sep_2022_arm_1")
 
 # Get long data
 long_imat = raw_imat %>%

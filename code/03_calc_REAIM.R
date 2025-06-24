@@ -28,6 +28,8 @@ if(get_raw_from_api){
 # Flip PC & SUD files separately to avoid future issues with columns not matching
 flip_reaim = function(df) {
   df %>%
+    # Remove id00 and id50 - test observations
+    filter(!(program_id %in% c("id00", "id50"))) %>%
     # Keep rows that have any REAIM data
     filter(if_any(starts_with("reaim_"), ~!is.na(.x))) %>%
     # Keep program id, event name (that has the date), and all REAIM cols

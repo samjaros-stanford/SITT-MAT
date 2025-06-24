@@ -35,6 +35,8 @@ if(get_raw_from_api){
 # Load & Process Data #
 #######################
 clean_SUD = sud_info %>% 
+  # Remove id00
+  filter(program_id != "id00") %>%
   filter(if_any(starts_with("demo"), ~!is.na(.x))) %>%
   mutate(site_type = "SUD",
          demo_level_of_care = as.character(demo_level_of_care),
@@ -50,6 +52,8 @@ clean_SUD = sud_info %>%
 
 # Assumes all primary cares are outpatient
 clean_PC = pc_info %>% 
+  # Remove id50
+  filter(program_id != "id50") %>%
   filter(if_any(starts_with("demo"), ~!is.na(.x))) %>%
   mutate(site_type="PC",
          isOutpatient = T,
@@ -67,7 +71,6 @@ clean_PC = pc_info %>%
 ##########
 
 saveRDS(bind_rows(clean_SUD, clean_PC) %>%
-          filter(imp_support != 5) %>%
           select(program_id, demo_goal, site_type, care_level), 
         file="data/study_program_info.rds")
 

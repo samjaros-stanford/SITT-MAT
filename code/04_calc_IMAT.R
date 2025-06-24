@@ -37,8 +37,8 @@ pc_imat$imat_count_4 = as.numeric(pc_imat$imat_count_4)
 ##########
 raw_imat = pc_imat %>%
   bind_rows(sud_imat) %>%
-  # Remove incomplete surveys (completion!=2)
-  filter(imatpc_team_report_complete==2 | imatsc_team_report_complete==2) %>%
+  # Remove id00 and id50 - test programs
+  filter(!(program_id %in% c("id00", "id50"))) %>%
   # Get survey date from redcap event
   mutate(date = my(substr(redcap_event_name, 1, 8)),
          complete_display_date = if_else(is.na(imat_completion_date), 

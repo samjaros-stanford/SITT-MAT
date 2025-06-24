@@ -44,8 +44,6 @@ if(get_raw_from_api){
 
 raw_cdi = bind_rows(mutate(sud_cdi, type="SUD"), 
                     mutate(pc_cdi, type="PC")) %>%
-  # Remove sites that have withdrawn
-  #filter(imp_support!=5) %>%
   # Remove test sties
   filter(!(program_id%in%c("id00","id50"))) %>%
   select(-imp_support)
@@ -135,8 +133,8 @@ cdi_cat = long_cdi %>%
 # Export #
 ##########
 
-write.csv(cdi_score, file=paste0("data/", output_prefix, "score.csv"), row.names=F)
-write.csv(cdi_cat, file=paste0("data/", output_prefix, "cat.csv"), row.names=F)
+# write.csv(cdi_score, file=paste0("data/", output_prefix, "score.csv"), row.names=F)
+# write.csv(cdi_cat, file=paste0("data/", output_prefix, "cat.csv"), row.names=F)
 saveRDS(long_cdi, file="data/current_long_cdi.rds")
 
 # Get data for report ==========================================================
