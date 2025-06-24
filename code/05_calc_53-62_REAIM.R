@@ -262,14 +262,14 @@ for(i in 1:nrow(all_data)){
   }
 }
 
-# For study data, the patient must have been diagnosed after Sep 1 2022
+# For study data, the patient must have been diagnosed after March 1 2022 (updated 5/1/25)
 #   Decide on which ID's will be included in the study
 #     If they were started or restarted after Sep 1, 2022, they're eligible
 #   For the patients whose starts were cut off but restarts remain,
 #     reassign the first restart to be the start
 study_data = all_data %>%
   filter(is_dx) %>%
-  filter(encounter_date>=ymd("2022-09-01")) %>%
+  filter(encounter_date>=ymd("2022-03-01")) %>%
   group_by(pr_id) %>%
   filter(row_number()==1) %>%
   rename(first_study_date=encounter_date) %>%
