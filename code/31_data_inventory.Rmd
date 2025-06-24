@@ -1,0 +1,195 @@
+---
+title: "31_data_inventory"
+output: pdf_document
+classoption: landscape
+---
+
+```{r, echo=F, message=F}
+# Create table describing the number and percent of sites who have completed surveys
+# Should be run after using _runner.R to compile the current survey results
+
+library(here)
+library(kableExtra)
+library(tidyverse)
+
+# Import =======================================================================
+baseline_reaim_imat <- readRDS(here("data/current_baseline_reaim-imat.rds"))
+cur_cdi <- readRDS(here("data/current_long_cdi.rds"))
+cur_ifasis <- readRDS(here("data/current_ifasis_score.rds"))
+cur_imat <- readRDS(here("data/current_imat_item.rds")) %>%
+  # Remove survey included in baseline
+  filter(date!=ymd("2022-09-01"))
+cur_info <- readRDS(here("data/all_program_info.rds"))
+cur_reaim <- readRDS(here("data/current_reaim.rds"))
+
+# Processing ===================================================================
+# Dates - Associate Date with label and denominator for table ------------------
+dates <- tribble(
+  ~date,             ~total_n, ~text,
+  ymd("2022-08-01"), 56,       "Baseline<br>(T1)",
+  ymd("2022-09-01"), 55,       "Sep-Nov '22<br>",
+  ymd("2022-10-01"), 55,       "Sep-Nov '22<br>",
+  ymd("2022-11-01"), 55,       "Sep-Nov '22<br>",
+  ymd("2022-12-01"), 55,       "Dec '22-Feb '23<br>",
+  ymd("2023-01-01"), 55,       "Dec '22-Feb '23<br>",
+  ymd("2023-02-01"), 55,       "Dec '22-Feb '23<br>",
+  ymd("2023-03-01"), 55,       "Mar-May '23<br>(T2)",
+  ymd("2023-04-01"), 55,       "Mar-May '23<br>(T2)",
+  ymd("2023-05-01"), 55,       "Mar-May '23<br>(T2)",
+  ymd("2023-06-01"), 46,       "Jun-Aug '23<br>",
+  ymd("2023-07-01"), 46,       "Jun-Aug '23<br>",
+  ymd("2023-08-01"), 46,       "Jun-Aug '23<br>",
+  ymd("2023-09-01"), 46,       "Sep-Nov '23<br>(T3)",
+  ymd("2023-10-01"), 46,       "Sep-Nov '23<br>(T3)",
+  ymd("2023-11-01"), 46,       "Sep-Nov '23<br>(T3)",
+  ymd("2023-12-01"), 41,       "Dec '23-Feb '24<br>",
+  ymd("2024-01-01"), 41,       "Dec '23-Feb '24<br>",
+  ymd("2024-02-01"), 41,       "Dec '23-Feb '24<br>",
+  ymd("2024-03-01"), 41,       "Mar-May '24<br>",
+  ymd("2024-04-01"), 41,       "Mar-May '24<br>",
+  ymd("2024-05-01"), 41,       "Mar-May '24<br>",
+  ymd("2024-06-01"), 41,       "Jun-Aug '24<br>(T4)",
+  ymd("2024-07-01"), 41,       "Jun-Aug '24<br>(T4)",
+  ymd("2024-08-01"), 41,       "Jun-Aug '24<br>(T4)",
+  ymd("2024-09-01"), 38,       "Sep-Nov '24<br>",
+  ymd("2024-10-01"), 38,       "Sep-Nov '24<br>",
+  ymd("2024-11-01"), 38,       "Sep-Nov '24<br>",
+  ymd("2024-12-01"), 38,       "Dec '24-Feb '25<br>",
+  ymd("2025-01-01"), 38,       "Dec '24-Feb '25<br>",
+  ymd("2025-02-01"), 38,       "Dec '24-Feb '25<br>"
+)
+
+text_order <- unique(dates$text)
+
+# Baseline REAIM & IMAT - Count of sites at baseline ---------------------------
+# These values are collected at baseline, assigned an Aug 1 2022 date here
+baseline_inv <- baseline_reaim_imat %>%
+  # Force baseline to be Aug 1 2022
+  # Separate REAIM & IMAT
+  mutate(date = ymd("2022-08-01"),
+         survey = str_extract(variable, "([a-z]*)")) %>%
+  # Bring in date -> translation
+  left_join(dates) %>%
+  # Count number of sites within each date text
+  distinct(program_id, survey, text, total_n) %>%
+  count(survey, text, total_n) %>%
+  # Calculate percent
+  mutate(pct = n/total_n*100) %>%
+  # Get IMAT & REAIM n and pct columns
+  pivot_wider(id_cols = text,
+              names_from = survey,
+              names_glue = "{survey}_{.value}",
+              values_from = c(n, pct))
+
+# CDI & IFASIS - Count of sites at each timepoint ------------------------------
+# IFASIS is the improved/changed/updated version of the CDI
+ifasis_inv <- cur_cdi %>%
+  # CDI occured at baseline
+  mutate(date = ymd("2022-08-01")) %>%
+  # Bring in date -> translation
+  left_join(dates) %>%
+  # Count number of sites within each date text
+  distinct(program_id, text, total_n) %>%
+  count(text, total_n) %>%
+  bind_rows(cur_ifasis %>%
+              # Bring in date -> translation
+              left_join(dates) %>%
+              # Count number of sites within each date text
+              distinct(program_id, text, total_n) %>%
+              count(text, total_n)) %>%
+  # Calculate percent
+  mutate(ifasis_pct = n/total_n*100) %>%
+  rename(ifasis_n = n)
+
+# IMAT - Count of sites at each timepoint --------------------------------------
+imat_inv <- cur_imat %>%
+  # Bring in date -> translation
+  left_join(dates) %>%
+  # Count number of sites within each date text
+  distinct(program_id, text, total_n) %>%
+  count(text, total_n) %>%
+  # Calculate percent
+  mutate(imat_pct = n/total_n*100) %>%
+  rename(imat_n = n)
+
+# INFO - Count of sites at each timepoint --------------------------------------
+info_inv <- cur_info %>%
+  # Info collected at baseline
+  mutate(date = ymd("2022-08-01")) %>%
+  # Bring in date -> translation
+  left_join(dates) %>%
+  # Count number of sites within each date text
+  distinct(program_id, text, total_n) %>%
+  count(text, total_n) %>%
+  # Calculate percent
+  mutate(info_pct = n/total_n*100) %>%
+  rename(info_n = n)
+
+# REAIM - Count of sites at each timepoint -------------------------------------
+reaim_inv <- cur_reaim %>%
+  # Remove NA values so that non-respondents show up as missing
+  filter(!is.na(value)) %>%
+  # Bring in date -> translation
+  left_join(dates) %>%
+  # Count number of sites within each date text
+  distinct(program_id, text, total_n) %>%
+  count(text, total_n) %>%
+  # Calculate percent
+  mutate(reaim_pct = n/total_n*100) %>%
+  rename(reaim_n = n)
+
+# Combined - Count of sites at each timepoint for all surveys ------------------
+all_inv <- ifasis_inv %>%
+  full_join(imat_inv) %>%
+  full_join(info_inv) %>%
+  full_join(reaim_inv) %>%
+  # Add in baseline data last
+  rows_update(baseline_inv, by="text") %>%
+  # Order text labels
+  mutate(text = factor(text, levels=text_order, ordered=T)) %>%
+  arrange(text) %>%
+  # Get column label with total
+  mutate(col_label = paste0(text, " N=", total_n)) %>%
+  select(-total_n) %>%
+  # Get date formatted
+  pivot_longer(cols = ends_with(c("_n", "_pct")),
+               names_to = c("survey", ".value"),
+               names_pattern = "(.*)_(n|pct)") %>%
+  # Format number
+  mutate(num_text = if_else(is.na(n),
+                            "",
+                            paste0(n, " (", round(pct), "%)"))) %>%
+  # Get timepoints along top
+  pivot_wider(id_cols = survey,
+              names_from = col_label,
+              values_from = num_text)
+
+# Table Creation ===============================================================
+# Table containing text to be added to the beginning of the data invantory
+table_info <- tribble(
+  ~survey,  ~outcome_type,              ~description,
+  "reaim",  "Primary Outcomes",        "Reach, Adoption, Access, Retention",
+  "imat",   "Primary Outcomes",        "Implementation - Integrating Medications<br>for Addiction Treatment (IMAT)",
+  "info",   "Contextual Determinants", "Organizational Characteristics",
+  "ifasis", "Contextual Determinants", "Inventory of Factors Affecting<br>Implementation & Sustainment (IFASIS)")
+
+table_data <- table_info %>%
+  left_join(all_inv) %>%
+  select(-survey, -outcome_type) %>%
+  # Replace all NA's with blanks
+  mutate(across(everything(), ~if_else(is.na(.), "", as.character(.)))) %>%
+  column_to_rownames("description")
+
+t <- kbl(table_data, type="html", format="html", escape=F, align="c") %>%
+  kable_styling(bootstrap_options = c("condensed", "bordered")) %>%
+  # Color rows
+  row_spec(1:2, background = "#e1f0eb", ) %>%
+  row_spec(3:4, background = "#f8f8e1") %>%
+  # Get row headers
+  pack_rows("Primary Outcomes", 1, 2, background = "#DCDCDC") %>%
+  pack_rows("Contextual Determinants", 3, 4, background = "#DCDCDC") 
+
+t
+
+```
+
